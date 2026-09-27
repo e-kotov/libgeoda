@@ -67,7 +67,7 @@ void UniLOSH::ComputeLoalSA() {
             lisa_vec[i] = 0;
             cluster_vec[i] = CLUSTER_UNDEFINED;
         } else {
-            if (weights->GetNbrSize(i) == 0) {
+            if (weights->GetNbrSize(i) == 0 || (weights->GetNbrSize(i) == 1 && weights->CheckNeighbor(i, i))) {
                 cluster_vec[i] = CLUSTER_NEIGHBORLESS;
             } else {
                 const std::vector<long>& nbrs = weights->GetNeighbors(i);
@@ -76,12 +76,19 @@ void UniLOSH::ComputeLoalSA() {
                 
                 double sp_lag = 0.0;
                 double w_sum = 0.0;
+                int valid_nbrs = 0;
                 
                 for (int j=0; j<num_nbrs; ++j) {
                     if (nbrs[j] != i && nbrs[j] < num_obs && !undefs[nbrs[j]]) {
                         sp_lag += data[nbrs[j]] * nbr_w[j];
                         w_sum += nbr_w[j];
+                        valid_nbrs++;
                     }
+                }
+                
+                if (valid_nbrs == 0) {
+                    cluster_vec[i] = CLUSTER_NEIGHBORLESS;
+                    continue;
                 }
                 
                 if (w_sum > 0 && row_standardize) {
@@ -113,7 +120,7 @@ void UniLOSH::ComputeLoalSA() {
     
     // Pass 2: Compute spatially lagged residuals (Hi)
     for (int i=0; i<num_obs; i++) {
-        if (undefs[i] || weights->IsMasked(i) == false || weights->GetNbrSize(i) == 0) continue;
+        if (undefs[i] || weights->IsMasked(i) == false || weights->GetNbrSize(i) == 0 || (weights->GetNbrSize(i) == 1 && weights->CheckNeighbor(i, i)) || cluster_vec[i] == CLUSTER_NEIGHBORLESS) continue;
         
         const std::vector<long>& nbrs = weights->GetNeighbors(i);
         const std::vector<double>& nbr_w = weights->GetNeighborWeights(i);
@@ -153,6 +160,7 @@ void UniLOSH::CalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_start)
     for (int cnt = obs_start; cnt <= obs_end; cnt++) {
         if (undefs[cnt] || weights->IsMasked(cnt) == false) {
             sig_cat_vec[cnt] = 6; // undefined
+            sig_local_vec[cnt] = -1.0;
             continue;
         }
 
@@ -162,6 +170,7 @@ void UniLOSH::CalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_start)
         }
         if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
+            sig_local_vec[cnt] = -1.0;
             continue;
         }
 
@@ -222,6 +231,7 @@ void UniLOSH::PermCalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_st
     for (int cnt = obs_start; cnt <= obs_end; cnt++) {
         if (undefs[cnt] || weights->IsMasked(cnt) == false) {
             sig_cat_vec[cnt] = 6; // undefined
+            sig_local_vec[cnt] = -1.0;
             continue;
         }
 
@@ -231,6 +241,7 @@ void UniLOSH::PermCalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_st
         }
         if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
+            sig_local_vec[cnt] = -1.0;
             continue;
         }
 
@@ -305,7 +316,7 @@ std::vector<int> UniLOSH::GetClusterIndicators() {
     std::vector<int> clusters(num_obs);
     double cutoff = GetSignificanceCutoff();
     for (int i=0; i<num_obs; i++) {
-        if (sig_local_vec[i] > cutoff &&
+        if ((sig_local_vec[i] > cutoff || sig_local_vec[i] < 0) &&
                 (const unsigned long)cluster_vec[i] != CLUSTER_UNDEFINED &&
                 (const unsigned long)cluster_vec[i] != CLUSTER_NEIGHBORLESS)
         {

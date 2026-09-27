@@ -47,7 +47,7 @@ void UniJoinCount::ComputeLoalSA() {
             lisa_vec[i] = 0;
             cluster_vec[i] = CLUSTER_UNDEFINED;
         } else {
-            if (weights->GetNbrSize(i) == 0) {
+            if (weights->GetNbrSize(i) == 0 || (weights->GetNbrSize(i) == 1 && weights->CheckNeighbor(i, i))) {
                 undefs[i] = true; // same logic as in GeoDa
                 cluster_vec[i] = CLUSTER_NEIGHBORLESS;
             } else {
@@ -79,6 +79,7 @@ void UniJoinCount::CalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_s
     for (int cnt=obs_start; cnt<=obs_end; cnt++) {
         if (undefs[cnt] || weights->IsMasked(cnt) == false) {
             sig_cat_vec[cnt] = 6; // undefined
+            sig_local_vec[cnt] = -1.0;
             continue;
         }
 
@@ -96,6 +97,7 @@ void UniJoinCount::CalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_s
         }
         if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
+            sig_local_vec[cnt] = -1.0;
             // isolate: don't do permutation
             continue;
         }
@@ -205,6 +207,7 @@ void UniJoinCount::PermCalcPseudoP_range(int obs_start, int obs_end, uint64_t se
     for (int cnt=obs_start; cnt<=obs_end; cnt++) {
         if (undefs[cnt] || weights->IsMasked(cnt) == false) {
             sig_cat_vec[cnt] = 6; // undefined
+            sig_local_vec[cnt] = -1.0;
             continue;
         }
         // ignore local join count == 0
@@ -214,8 +217,12 @@ void UniJoinCount::PermCalcPseudoP_range(int obs_start, int obs_end, uint64_t se
         }
         // get full neighbors even if has undefined value
         int numNeighbors = weights->GetNbrSize(cnt);
-        if (numNeighbors == 0) {
+        if (weights->CheckNeighbor(cnt, cnt)) {
+            numNeighbors -= 1;
+        }
+        if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
+            sig_local_vec[cnt] = -1.0;
             // isolate: don't do permutation
             continue;
         }
@@ -278,7 +285,9 @@ std::vector<int> UniJoinCount::GetClusterIndicators() {
     std::vector<int> clusters(num_obs);
     double cutoff = GetSignificanceCutoff();
     for (int i=0; i<num_obs; i++) {
-        if (sig_local_vec[i] <= cutoff ) {
+        if (cluster_vec[i] == CLUSTER_UNDEFINED || cluster_vec[i] == CLUSTER_NEIGHBORLESS) {
+            clusters[i] = cluster_vec[i];
+        } else if (sig_local_vec[i] >= 0 && sig_local_vec[i] <= cutoff ) {
             if (lisa_vec[i] == 0) {
                 clusters[i] = CLUSTER_NOT_SIG;
             } else {
