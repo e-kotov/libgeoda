@@ -89,6 +89,11 @@ void UniJoinCount::CalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_s
 
         // get full neighbors even if has undefined value
         int numNeighbors = weights->GetNbrSize(cnt);
+        // a self-link is not part of the observed join count either
+        // (UniJoinCount::ComputeLoalSA() skips `nbrs[j] != i`)
+        if (weights->CheckNeighbor(cnt, cnt)) {
+            numNeighbors -= 1;
+        }
         if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
             // isolate: don't do permutation

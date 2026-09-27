@@ -468,7 +468,15 @@ void LISA::PermCalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_start
         }
         // get full neighbors even if has undefined value
         int numNeighbors = weights->GetNbrSize(cnt);
-        if (numNeighbors == 0) {
+        // A self-link must not be counted here: the observed statistic (e.g.
+        // UniLocalMoran::ComputeLoalSA()) skips `nbrs[j] != i` and averages over
+        // k neighbors, while the permutation drew and averaged k+1 values, which
+        // makes the null distribution too narrow. GeoDa desktop subtracts it
+        // (Explore/AbstractCoordinator.cpp:521-526).
+        if (weights->CheckNeighbor(cnt, cnt)) {
+            numNeighbors -= 1;
+        }
+        if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
             // isolate: don't do permutation
             continue;
@@ -575,7 +583,15 @@ void LISA::CalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_start)
 
         // get full neighbors even if has undefined value
         int numNeighbors = weights->GetNbrSize(cnt);
-        if (numNeighbors == 0) {
+        // A self-link must not be counted here: the observed statistic (e.g.
+        // UniLocalMoran::ComputeLoalSA()) skips `nbrs[j] != i` and averages over
+        // k neighbors, while the permutation drew and averaged k+1 values, which
+        // makes the null distribution too narrow. GeoDa desktop subtracts it
+        // (Explore/AbstractCoordinator.cpp:521-526).
+        if (weights->CheckNeighbor(cnt, cnt)) {
+            numNeighbors -= 1;
+        }
+        if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
             // isolate: don't do permutation
             continue;

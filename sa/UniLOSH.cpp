@@ -78,7 +78,7 @@ void UniLOSH::ComputeLoalSA() {
                 double w_sum = 0.0;
                 
                 for (int j=0; j<num_nbrs; ++j) {
-                    if (nbrs[j] < num_obs && !undefs[nbrs[j]]) {
+                    if (nbrs[j] != i && nbrs[j] < num_obs && !undefs[nbrs[j]]) {
                         sp_lag += data[nbrs[j]] * nbr_w[j];
                         w_sum += nbr_w[j];
                     }
@@ -123,7 +123,7 @@ void UniLOSH::ComputeLoalSA() {
         double w_sum = 0.0;
         
         for (int j=0; j<num_nbrs; ++j) {
-            if (nbrs[j] < num_obs && !undefs[nbrs[j]]) {
+            if (nbrs[j] != i && nbrs[j] < num_obs && !undefs[nbrs[j]]) {
                 lag_e += local_residuals[nbrs[j]] * nbr_w[j];
                 w_sum += nbr_w[j];
             }
@@ -157,12 +157,22 @@ void UniLOSH::CalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_start)
         }
 
         int numNeighbors = weights->GetNbrSize(cnt);
-        if (numNeighbors == 0) {
+        if (weights->CheckNeighbor(cnt, cnt)) {
+            numNeighbors -= 1;
+        }
+        if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
             continue;
         }
 
-        std::vector<double> nbr_w = weights->GetNeighborWeights(cnt);
+        std::vector<double> nbr_w;
+        const std::vector<long>& nbrs = weights->GetNeighbors(cnt);
+        const std::vector<double>& raw_nbr_w = weights->GetNeighborWeights(cnt);
+        for (size_t j = 0; j < nbrs.size(); ++j) {
+            if (nbrs[j] != cnt) {
+                nbr_w.push_back(raw_nbr_w[j]);
+            }
+        }
         std::vector<double> permutedSA(permutations, 0.0);
 
         for (int perm = 0; perm < permutations; perm++) {
@@ -216,12 +226,22 @@ void UniLOSH::PermCalcPseudoP_range(int obs_start, int obs_end, uint64_t seed_st
         }
 
         int numNeighbors = weights->GetNbrSize(cnt);
-        if (numNeighbors == 0) {
+        if (weights->CheckNeighbor(cnt, cnt)) {
+            numNeighbors -= 1;
+        }
+        if (numNeighbors <= 0) {
             sig_cat_vec[cnt] = 5; // neighborless cat
             continue;
         }
 
-        std::vector<double> nbr_w = weights->GetNeighborWeights(cnt);
+        std::vector<double> nbr_w;
+        const std::vector<long>& nbrs = weights->GetNeighbors(cnt);
+        const std::vector<double>& raw_nbr_w = weights->GetNeighborWeights(cnt);
+        for (size_t j = 0; j < nbrs.size(); ++j) {
+            if (nbrs[j] != cnt) {
+                nbr_w.push_back(raw_nbr_w[j]);
+            }
+        }
         std::vector<double> permutedSA(permutations, 0.0);
 
         for (size_t perm = 0; perm < (size_t)permutations; perm++) {
